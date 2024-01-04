@@ -1,5 +1,6 @@
 package com.github.hcsp;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -11,32 +12,88 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 import java.io.IOException;
+import java.sql.*;
 import java.util.*;
 
 public class Main {
-    public static void main(String[] args) throws IOException {
-        List<String> linkPool = new ArrayList<>();
-        Set<String> processedLinks = new HashSet<>();
-        linkPool.add("https://sina.cn");
+    private static final String USER_NAME = "root";
+    private static final String PASSWORD = "123456";
+
+    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
+    public static void main(String[] args) throws IOException, SQLException {
+        Connection connection = DriverManager.getConnection("jdbc:h2:/Users/yanghe/project/crawler/target/news", USER_NAME, PASSWORD);
 
         while (true) {
+            List<String> linkPool = getProcessedLinks(connection, "select link from LINKS_TO_BE_PROCESSED");
+//            System.out.println(linkPool);
             if (linkPool.isEmpty()) {
                 break;
             }
-
             String link = linkPool.remove(linkPool.size()-1);
-            if (processedLinks.contains(link)) {
+            executedSql(connection, link, "delete from LINKS_TO_BE_PROCESSED where link = ?");
+            if (isLinkProcessed(connection, link)) {
                 continue;
             }
 
             if (isInterestingLink(link)) {
                 Document doc = httpGetAndParseHtml(link);
-                doc.select("a").stream().map(aTag -> aTag.attr("href")).forEach(linkPool::add);
+                parseUrlsFromPageAndStoreIntoDatabase(connection, doc);
                 storeIntoDatabase(doc);
-                processedLinks.add(link);
             } else {
-                // 不处理它
+                executedSql(connection, link, "insert into LINKS_ALREADY_PROCESSED (link) values (?)");
             }
+        }
+    }
+
+    private static void parseUrlsFromPageAndStoreIntoDatabase(Connection connection, Document doc) throws SQLException {
+        for (Element aTag : doc.select("a")) {
+            String href = aTag.attr("href");
+            executedSql(connection, href, "INSERT INTO LINKS_TO_BE_PROCESSED (link) values (?)");
+        }
+    }
+
+    private static boolean isLinkProcessed(Connection connection, String link) {
+        ResultSet resultSet = null;
+        try (PreparedStatement statement = connection.prepareStatement("select link from LINKS_ALREADY_PROCESSED where link = ?")) {
+            statement.setString(1, link);
+            resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                return true;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            try {
+                if (resultSet != null) {
+                    resultSet.close();
+                }
+            } catch (SQLException ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static List<String> getProcessedLinks(Connection connection, String sql) throws SQLException {
+        List<String> processedLinks = new ArrayList<>();
+        ResultSet resultLinksSet = null;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            resultLinksSet = statement.executeQuery();
+            while (resultLinksSet.next()) {
+                String alreadyLink = resultLinksSet.getString(1);
+                processedLinks.add(alreadyLink);
+            }
+        } finally {
+            if (resultLinksSet != null) {
+                resultLinksSet.close();
+            }
+        }
+        return processedLinks;
+    }
+
+    private static void executedSql(Connection connection, String link, String sql) throws SQLException {
+        try( PreparedStatement statement = connection.prepareStatement(sql) ) {
+            statement.setString(1, link);
+            statement.executeUpdate();
         }
     }
 
@@ -48,10 +105,8 @@ public class Main {
     private static void storeIntoDatabase(Document doc) {
         ArrayList<Element> articleLists = doc.select("article");
         if (!articleLists.isEmpty()) {
-            for (Element article : articleLists) {
-                String title = article.child(0).text();
-                System.out.println(title);
-            }
+            String title = articleLists.get(0).child(0).text();
+            System.out.println(title);
         }
     }
 
