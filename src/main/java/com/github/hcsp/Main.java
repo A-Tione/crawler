@@ -39,7 +39,6 @@ public class Main {
                 Document doc = httpGetAndParseHtml(link);
                 parseUrlsFromPageAndStoreIntoDatabase(connection, doc);
                 storeIntoDatabase(doc);
-            } else {
                 executedSql(connection, link, "insert into LINKS_ALREADY_PROCESSED (link) values (?)");
             }
         }
