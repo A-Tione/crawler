@@ -26,17 +26,11 @@ public class Main {
     public static void main(String[] args) throws IOException, SQLException {
         Connection connection = DriverManager.getConnection("jdbc:h2:/Users/yanghe/project/crawler/news", USER_NAME, PASSWORD);
 
-        while (true) {
-            List<String> linkPool = getProcessedLinks(connection, "select link from LINKS_TO_BE_PROCESSED");
-            if (linkPool.isEmpty()) {
-                break;
-            }
-            String link = linkPool.remove(linkPool.size()-1);
-            executedSql(connection, link, "delete from LINKS_TO_BE_PROCESSED where link = ?");
+        String link;
+        while ((link = getNextLinkThenDelete(connection)) != null) {
             if (isLinkProcessed(connection, link)) {
                 continue;
             }
-
             if (isInterestingLink(link)) {
                 Document doc = httpGetAndParseHtml(link);
                 parseUrlsFromPageAndStoreIntoDatabase(connection, doc);
@@ -45,6 +39,30 @@ public class Main {
             }
         }
     }
+
+    private static String getNextLink(Connection connection, String sql) throws SQLException {
+        ResultSet resultSet = null;
+        try (PreparedStatement statement = connection.prepareStatement(sql)){
+            resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                return resultSet.getString(1);
+            }
+        } finally {
+            if (resultSet != null) {
+                resultSet.close();
+            }
+        }
+        return null;
+    }
+
+    private static String getNextLinkThenDelete(Connection connection) throws SQLException {
+        String link = getNextLink(connection, "select link from LINKS_TO_BE_PROCESSED LIMIT 1");
+        if (link != null) {
+            executedSql(connection, link, "delete from LINKS_TO_BE_PROCESSED where link = ?");
+        }
+        return link;
+    }
+
 
     private static void parseUrlsFromPageAndStoreIntoDatabase(Connection connection, Document doc) throws SQLException {
         for (Element aTag : doc.select("a")) {
@@ -81,23 +99,6 @@ public class Main {
             }
         }
         return false;
-    }
-
-    private static List<String> getProcessedLinks(Connection connection, String sql) throws SQLException {
-        List<String> processedLinks = new ArrayList<>();
-        ResultSet resultLinksSet = null;
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            resultLinksSet = statement.executeQuery();
-            while (resultLinksSet.next()) {
-                String alreadyLink = resultLinksSet.getString(1);
-                processedLinks.add(alreadyLink);
-            }
-        } finally {
-            if (resultLinksSet != null) {
-                resultLinksSet.close();
-            }
-        }
-        return processedLinks;
     }
 
     private static void executedSql(Connection connection, String link, String sql) throws SQLException {
@@ -146,7 +147,7 @@ public class Main {
     }
 
     private static boolean isInterestingLink(String link) {
-        return  ((isNews(link) || isIndex(link) || isKLink(link) || isAllLink(link)) && isNotValidLink(link));
+        return  isAllLink(link) && isNotValidLink(link);
     }
     private static boolean isNotValidLink(String link) {
         return !link.contains("passport.sina.cn")
@@ -157,15 +158,6 @@ public class Main {
                 && !link.contains("health.sina.cn")
                 && !link.contains("jiaju.sina.cn")
                 && !link.contains("zhibo.sina.cn");
-
-    }
-
-    private static boolean isIndex(String link) {
-        return "https://sina.cn".equals(link);
-    }
-
-    private static boolean isNews(String link) {
-        return link.contains("news.sina.cn");
     }
 
     private static boolean isKLink(String link) {
