@@ -11,6 +11,7 @@
 .mtj.tmp/
 .idea/
 target/
+mysql-data/
 
 # Package Files #
 *.jar

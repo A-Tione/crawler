@@ -94,7 +94,8 @@ public class Crawler {
                 && !link.contains("photo.sina.cn")
                 && !link.contains("health.sina.cn")
                 && !link.contains("jiaju.sina.cn")
-                && !link.contains("zhibo.sina.cn");
+                && !link.contains("zhibo.sina.cn")
+                && !link.contains("guba.sina.cn");
     }
 
     private static boolean isKLink(String link) {
