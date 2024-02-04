@@ -18,26 +18,28 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-public class Crawler {
-    private CrawlerDao dao = new MyBatisCrawlerDao();
-    public void run() throws SQLException, IOException {
-        String link;
-        while ((link = dao.getNextLinkThenDelete()) != null) {
-            if (dao.isLinkProcessed(link)) {
-                continue;
-            }
-            if (isInterestingLink(link)) {
-                Document doc = httpGetAndParseHtml(link);
-                parseUrlsFromPageAndStoreIntoDatabase(doc);
-                storeIntoDatabase(doc, link);
-                dao.insertProcessedLink(link);
-            }
-        }
+public class Crawler extends Thread {
+    private CrawlerDao dao;
+    public Crawler(CrawlerDao dao) {
+        this.dao = dao;
     }
-
-    @SuppressFBWarnings("DMI_CONSTANT_DB_PASSWORD")
-    public static void main(String[] args) throws IOException, SQLException {
-        new Crawler().run();
+    public void run() {
+        try {
+            String link;
+            while ((link = dao.getNextLinkThenDelete()) != null) {
+                if (dao.isLinkProcessed(link)) {
+                    continue;
+                }
+                if (isInterestingLink(link)) {
+                    Document doc = httpGetAndParseHtml(link);
+                    parseUrlsFromPageAndStoreIntoDatabase(doc);
+                    storeIntoDatabase(doc, link);
+                    dao.insertProcessedLink(link);
+                }
+            }
+        } catch (SQLException | IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void parseUrlsFromPageAndStoreIntoDatabase(Document doc) throws SQLException {
