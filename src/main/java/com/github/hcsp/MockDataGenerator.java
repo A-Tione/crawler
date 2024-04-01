@@ -24,7 +24,7 @@ public class MockDataGenerator extends Thread {
             throw new RuntimeException(e);
         }
 
-        MockData(session, 1000_000);
+        MockData(session, 10000);
     }
 
     private static void MockData(SqlSession session, int maxCount) {
@@ -42,7 +42,7 @@ public class MockDataGenerator extends Thread {
                 news.setModifiedAt(currentTime);
                 session.insert("com.github.hcsp.MockMapper.insertNews", news);
                 System.out.println("Left:" + i);
-                if (i % 5000 == 0) {
+                if (i % 1000 == 0) {
                     session.flushStatements();
                 }
             }

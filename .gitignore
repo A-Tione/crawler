@@ -12,6 +12,7 @@
 .idea/
 target/
 mysql-data/
+esdata/
 
 # Package Files #
 *.jar

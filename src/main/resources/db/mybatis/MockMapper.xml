@@ -8,6 +8,6 @@
         VALUES (#{title}, #{content}, #{url}, #{createdAt}, #{modifiedAt})
     </select>
     <select id="selectNews" resultType="com.github.hcsp.News">
-        SELECT id, url, content, title, created_at, modified_at FROM news
+        SELECT id, url, content, title, created_at, modified_at FROM news limit 2000
     </select>
 </mapper>
